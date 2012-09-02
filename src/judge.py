@@ -34,7 +34,7 @@ class Judge:
 		self.score = multiprocessing.Value('f', 0.0)
 		
 	def limit(self):
-		resource.setrlimit(resource.RLIMIT_AS, (self.memorylimit.value, self.memorylimit.value + 1048576))
+		resource.setrlimit(resource.RLIMIT_AS, (self.memorylimit.value, self.memorylimit.value + 16777216))
 		resource.setrlimit(resource.RLIMIT_CPU, (self.cpulimit.value, self.cpulimit.value + 1.0))
 		os.setgid(305)
 		os.setuid(305)
@@ -90,12 +90,15 @@ class Judge:
 				return 3
 			self.status.value = 2
 			return 2
-		self.score = compare(programOutput[0], _out)
-		if self.score != 1.0:
-			self.status.value = 1
-			return 1
-		self.status.value = 0
-		return 0 
+		self.score.value = compare(programOutput[0], _out)
+		if self.score.value == 1.0:
+			self.status.value = 0
+			return 0
+		if self.score.value != 0.0:
+			self.status.value = 6
+			return 6
+		self.status.value = 1
+		return 1 
 	
 	def judge(self, type, source, input, output, compare = _compare):
 		if os.getuid() != 0:
