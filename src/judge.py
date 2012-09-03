@@ -103,11 +103,11 @@ class Judge:
 	
 	def judge(self, _type, source, _input, output, compare = _compare):
 		if os.getuid() != 0:
-			print >>sys.stderr, 'Judge must be run by root!'
+			print >> sys.stderr, 'Judge must be run by root!'
 			return -2147483648
 		sys.stderr = open('/dev/null', 'w')
 		try:
-			#os.mkdir('/tmp/pjudge/')
+			os.mkdir('/tmp/pjudge/')
 			os.chmod('/tmp/pjudge/', 0755)
 		except OSError:
 			pass
