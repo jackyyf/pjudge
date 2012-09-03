@@ -36,6 +36,7 @@ class Judge:
 	def limit(self):
 		resource.setrlimit(resource.RLIMIT_AS, (self.memorylimit.value, self.memorylimit.value + 16777216))
 		resource.setrlimit(resource.RLIMIT_CPU, (self.cpulimit.value, self.cpulimit.value + 1.0))
+		os.chroot("/tmp/pjudge/")
 		os.setgid(305)
 		os.setuid(305)
 		return 0
@@ -57,9 +58,9 @@ class Judge:
 				time.sleep(0.01)
 				continue
 			self.memoryusage.value = int(int(dat[1]) * _scale[dat[2]])
-	def run(self, command, input, output, compare):
+	def run(self, command, _input, output, compare):
 		try:
-			f = open(input, 'r')
+			f = open(_input, 'r')
 			_in = f.read()
 			f.close()
 			f = open(output, 'r')
@@ -100,18 +101,24 @@ class Judge:
 		self.status.value = 1
 		return 1 
 	
-	def judge(self, type, source, input, output, compare = _compare):
+	def judge(self, _type, source, _input, output, compare = _compare):
 		if os.getuid() != 0:
 			print >>sys.stderr, 'Judge must be run by root!'
 			return -2147483648
 		sys.stderr = open('/dev/null', 'w')
-		exePath = './tmp' + str(os.getpid())
-		if type == 'C++':
-			compileThread = subprocess.Popen(['g++', '-Wall', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
-		elif type == 'C':
-			compileThread = subprocess.Popen(['gcc', '-Wall', '--std=c99', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
-		elif type == 'FPC':
-			compileThread = subprocess.Popen(['fpc', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+		try:
+			#os.mkdir('/tmp/pjudge/')
+			os.chmod('/tmp/pjudge/', 0755)
+		except OSError:
+			pass
+		exeName = '/bin' + str(os.getpid())
+		exePath = '/tmp/pjudge/bin' + str(os.getpid())
+		if _type == 'C++':
+			compileThread = subprocess.Popen(['g++', '--static', '-Wall', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+		elif _type == 'C':
+			compileThread = subprocess.Popen(['gcc', '--static', '-Wall', '--std=c99', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+		elif _type == 'FPC':
+			compileThread = subprocess.Popen(['fpc', '-o' + exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
 		else :
 			self.status.value = -2147483648
 		compileResult = compileThread.communicate()
@@ -125,7 +132,7 @@ class Judge:
 			self.status.value = 4
 			return 4
 		self.status.value = 255
-		judgeThread = multiprocessing.Process(target = self.run, args = (exePath, input, output, compare))
+		judgeThread = multiprocessing.Process(target = self.run, args = (exeName, _input, output, compare))
 		judgeThread.start()
 		judgeThread.join(self.cpulimit.value + 2.0)
 		if self.status.value == 255:
@@ -139,3 +146,4 @@ class Judge:
 			return 5
 		os.remove(exePath)
 		return self.status.value
+
