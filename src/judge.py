@@ -61,7 +61,7 @@ class Judge:
 	def run(self, command, _input, output, compare):
 		try:
 			f = open(_input, 'r')
-			_in = f.read()
+			_in = f.read() + chr(26)
 			f.close()
 			f = open(output, 'r')
 			_out = f.read()
