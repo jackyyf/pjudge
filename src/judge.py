@@ -46,6 +46,11 @@ class Judge:
 		os.setgid(305)
 		os.setuid(305)
 		return 0
+
+	def compile_limit(self):
+		resource.setrlimit(resource.RLIMIT_AS, (67108864, 100663296))
+		resource.setrlimit(resource.RLIMIT_CPU, (2.0, 3.0))
+		return 0
 	
 	def monitor(self, pid):
 		global _scale
@@ -121,20 +126,30 @@ class Judge:
 			pass
 		exeName = '/bin' + str(os.getpid())
 		exePath = '/tmp/pjudge/bin' + str(os.getpid())
-		if _type == 'C++':
-			compileThread = subprocess.Popen(['g++', '--static', '-Wall', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
-		elif _type == 'C':
-			compileThread = subprocess.Popen(['gcc', '--static', '-Wall', '--std=c99', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
-		elif _type == 'FPC':
-			compileThread = subprocess.Popen(['fpc', '-XS', '-o' + exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
-		else :
-			self.status.value = -2147483648
-		compileResult = compileThread.communicate()
+		try:
+			if _type == 'C++':
+				compileThread = subprocess.Popen(['g++', '--static', '-Wall', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+			elif _type == 'C':
+				compileThread = subprocess.Popen(['gcc', '--static', '-Wall', '--std=c99', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+			elif _type == 'FPC':
+				compileThread = subprocess.Popen(['fpc', '-XS', '-o' + exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+			else :
+				self.status.value = -2147483648
+		except OSError:
+			self.errstr = 'Compiler Runs Out of memory: 64M.'
+			self.status.value = -1
+			return -1
+		try:
+			compileResult = compileThread.communicate()
+		except:
+			self.errstr = 'Compiler Runs Out of memory: 64M.'
+			self.status.value = -1
+			return -1
 		if compileThread.returncode != 0:
 			self.errstr = compileResult[1]
 			self.status.value = -1
 			return -1
-		sizeThread = subprocess.Popen(['size', exePath], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+		sizeThread = subprocess.Popen(['size', exePath], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1, preexec_fn = self.compile_limit)
 		self.memoryusage.value = int(sizeThread.communicate()[0].split("\n")[1].split("\t")[3])
 		if(self.memoryusage.value >= self.memorylimit.value):
 			self.status.value = 4
