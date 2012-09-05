@@ -6,17 +6,23 @@ _scale = {'kB': 1024, 'mB': 1048576,
 		  'KB': 1024, 'MB': 1048576}
 
 def _compare(usr, std):
+	usr = usr.strip()
+	std = std.strip()
 	std = std.split("\n")
 	usr = usr.split("\n")
 	lstd = len(std)
 	lusr = len(usr)
+	if lstd != lusr :
+		return 0.0
 	for _ in range(0, max(lstd, lusr)):
 		try:
 			stdl = std[_].strip()
+			del std[_]
 		except IndexError:
 			stdl = ''
 		try:
 			usrl = usr[_].strip()
+			del usr[_]
 		except IndexError:
 			usrl = ''
 		if(stdl != usrl):
@@ -61,7 +67,7 @@ class Judge:
 	def run(self, command, _input, output, compare):
 		try:
 			f = open(_input, 'r')
-			_in = f.read() + chr(26)
+			_in = f.read() + '\n' + chr(26)
 			f.close()
 			f = open(output, 'r')
 			_out = f.read()
@@ -83,8 +89,10 @@ class Judge:
 		monitorThread.terminate()
 		path2 = '/proc/%d/stat' % os.getpid()
 		f = open(path2, 'r')
-		self.cpuusage.value = float(f.read().split(" ")[15]) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
+		l = f.read().split(" ")
+		self.cpuusage.value = (int(l[15]) + int(l[16])) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
 		f.close()
+		del l
 		if programThread.returncode != 0 :
 			if -programThread.returncode == signal.SIGXCPU :
 				self.status.value = 3
@@ -118,7 +126,7 @@ class Judge:
 		elif _type == 'C':
 			compileThread = subprocess.Popen(['gcc', '--static', '-Wall', '--std=c99', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
 		elif _type == 'FPC':
-			compileThread = subprocess.Popen(['fpc', '-o' + exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+			compileThread = subprocess.Popen(['fpc', '-XS', '-o' + exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
 		else :
 			self.status.value = -2147483648
 		compileResult = compileThread.communicate()
@@ -138,12 +146,16 @@ class Judge:
 		if self.status.value == 255:
 			path2 = '/proc/%d/stat' % judgeThread.pid
 			f = open(path2, 'r')
-			self.cpuusage.value = float(f.read().split(" ")[15]) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
+			l = f.read.split(" ")
+			self.cpuusage.value = (int(l[15]) + int(l[16])) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
 			f.close()
+			del l
 			judgeThread.terminate()
 			os.remove(exePath)
 			self.status.value = 5
 			return 5
+		else :
+			judgeThread.join()
 		os.remove(exePath)
 		return self.status.value
 
