@@ -16,13 +16,13 @@ def _compare(usr, std):
 		return 0.0
 	for _ in range(0, max(lstd, lusr)):
 		try:
-			stdl = std[_].strip()
-			del std[_]
+			stdl = std[0].strip()
+			del std[0]
 		except IndexError:
 			stdl = ''
 		try:
-			usrl = usr[_].strip()
-			del usr[_]
+			usrl = usr[0].strip()
+			del usr[0]
 		except IndexError:
 			usrl = ''
 		if(stdl != usrl):
