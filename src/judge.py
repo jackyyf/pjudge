@@ -36,6 +36,7 @@ class Judge:
 		self.cpuusage = multiprocessing.Value('f', 0.0)
 		self.memoryusage = multiprocessing.Value('i', 0)
 		self.status = multiprocessing.Value('i', 0)
+		self.JudgeID = multiprocessing.Value('i', -1)
 		self.errstr = ''
 		self.score = multiprocessing.Value('f', 0.0)
 		
@@ -69,6 +70,7 @@ class Judge:
 				time.sleep(0.01)
 				continue
 			self.memoryusage.value = int(int(dat[1]) * _scale[dat[2]])
+
 	def run(self, command, _input, output, compare):
 		try:
 			f = open(_input, 'r')
@@ -85,19 +87,22 @@ class Judge:
 		except OSError:
 			self.status.value = -2
 			return -2
-		programThreadId = programThread.pid
-		monitorThread = multiprocessing.Process(target = self.monitor, args = (programThreadId, ))
-		monitorThread.daemon = True
-		monitorThread.start()
+		self.JudgeID.value = programThread.pid
+		#monitorThread = multiprocessing.Process(target = self.monitor, args = (programThreadId, ))
+		#monitorThread.daemon = True
+		#monitorThread.start()
 		programOutput = programThread.communicate(_in)
 		self.status.value = 0
-		monitorThread.terminate()
-		path2 = '/proc/%d/stat' % os.getpid()
-		f = open(path2, 'r')
-		l = f.read().split(" ")
-		self.cpuusage.value = (int(l[15]) + int(l[16])) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
-		f.close()
-		del l
+		Res = resource.getrusage(resource.RUSAGE_CHILDREN)
+		self.cpuusage.value = Res.ru_utime + Res.ru_stime
+		self.memoryusage.value = Res.ru_maxrss * resource.getpagesize()
+		#monitorThread.terminate()
+		#path2 = '/proc/%d/stat' % os.getpid()
+		#f = open(path2, 'r')
+		#l = f.read().split(" ")
+		#self.cpuusage.value = (int(l[15]) + int(l[16])) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
+		#f.close()
+		#del l
 		if programThread.returncode != 0 :
 			if -programThread.returncode == signal.SIGXCPU :
 				self.status.value = 3
@@ -105,6 +110,7 @@ class Judge:
 			self.status.value = 2
 			return 2
 		self.score.value = compare(programOutput[0], _out)
+		print programOutput[0] + '\n' + _out
 		if self.score.value == 1.0:
 			self.status.value = 0
 			return 0
@@ -118,7 +124,7 @@ class Judge:
 		if os.getuid() != 0:
 			print >> sys.stderr, 'Judge must be run by root!'
 			return -2147483648
-		sys.stderr = open('/dev/null', 'w')
+		#sys.stderr = open('/dev/null', 'w')
 		try:
 			os.mkdir('/tmp/pjudge/')
 			os.chmod('/tmp/pjudge/', 0755)
@@ -128,7 +134,7 @@ class Judge:
 		exePath = '/tmp/pjudge/bin' + str(os.getpid())
 		try:
 			if _type == 'C++':
-				compileThread = subprocess.Popen(['g++', '--static', '-Wall', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
+				compileThread = subprocess.Popen(['g++', '--static', '-Wall', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
 			elif _type == 'C':
 				compileThread = subprocess.Popen(['gcc', '--static', '-Wall', '--std=c99', '-lm', '-o', exePath, source], stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = -1)
 			elif _type == 'FPC':
@@ -159,12 +165,26 @@ class Judge:
 		judgeThread.start()
 		judgeThread.join(self.cpulimit.value + 2.0)
 		if self.status.value == 255:
-			path2 = '/proc/%d/stat' % judgeThread.pid
-			f = open(path2, 'r')
-			l = f.read.split(" ")
-			self.cpuusage.value = (int(l[15]) + int(l[16])) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
-			f.close()
-			del l
+			#path2 = '/proc/%d/stat' % judgeThread.pid
+			#f = open(path2, 'r')
+			#l = f.read.split(" ")
+			#self.cpuusage.value = (int(l[15]) + int(l[16])) / float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
+			#f.close()
+			#del l
+			Res = resource.getrusage(resource.RUSAGE_CHILDREN)
+			self.cpuusage.value = Res[0] + Res[1]
+			global _scale
+			path1 = '/proc/%d/status' % self.JudgeID.value
+			try:
+				f = open(path1, 'r')
+				dat = f.read()
+				f.close()
+			except IOError:
+				pass
+			i = dat.index("VmPeak")
+			dat = dat[i:].split(None, 3)
+			if len(dat) == 3:
+				self.memoryusage.value = int(int(dat[1]) * _scale[dat[2]])
 			judgeThread.terminate()
 			os.remove(exePath)
 			self.status.value = 5
